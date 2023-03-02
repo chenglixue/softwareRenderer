@@ -1,7 +1,7 @@
 #pragma once
 #include <limits>
-//#include "model.h"
 #include "tgaimage.h"
+#include "geometry.h"
 /*
 inline bool isInsideTriangle( Vec3f* v, float x, float y );
 

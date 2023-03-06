@@ -1,51 +1,6 @@
 #include "core.h"
-/*
-bool isInsideTriangle( Vec3f* v, float x, float y )
-{
-    Vec2f side1 = { v[1].x - v[0].x, v[1].y - v[0].y };
-    Vec2f side2 = { v[2].x - v[1].x, v[2].y - v[1].y };
-    Vec2f side3 = { v[0].x - v[2].x, v[0].y - v[2].y };
 
-    Vec2f v1 = { x - v[0].x, y - v[0].y };
-    Vec2f v2 = { x - v[1].x, y - v[1].y };
-    Vec2f v3 = { x - v[2].x, y - v[3].y };
-
-    float z1 = side1.x * v1.y - v1.x * side1.y;
-    float z2 = side2.x * v2.y - v2.x * side2.y;
-    float z3 = side3.x * v3.y - v3.y * side3.y;
-
-    if( ( z1 > 0 && z2 > 0 && z3 > 0) || ( z1 < 0 && z2 < 0 && z3 < 0 ) ) return true;
-    return false;
-}
-
-void drawTriangle( Vec3f* v, TGAImage& image, TGAColor color )
-{
-
-    int minX = std::min( v[0].x, std::min( v[1].x, v[2].x ) );
-    int maxX = std::max( v[0].x, std::max( v[1].x, v[2].x ) );
-    int minY = std::min( v[0].y, std::min( v[1].y, v[2].y ) );
-    int maxY = std::max( v[0].y, std::max( v[1].y, v[2].y ) );
-
-    for( int i = minX; i <= maxX; ++i )
-    {
-        for( int j = minY; j <= minY; ++j )
-        {
-            if( isInsideTriangle( v, i, j ) == true ) image.set( i, j, color );
-        }
-    }
-
-
-}
-
-std::tuple<float, float, float> computeBarycentric2D(float x, float y, Vec3f* v){
-    float c1 = (x * (v[1].y - v[2].y) + (v[2].x - v[1].x) * y + v[1].x * v[2].y - v[2].x*v[1].y) / (v[0].x * (v[1].y - v[2].y) + (v[2].x - v[1].x) * v[0].y + v[1].x * v[2].y - v[2].x * v[1].y );
-    float c2 = (x * (v[2].y - v[0].y) + (v[0].x - v[2].x) * y + v[2].x * v[0].y - v[0].x*v[2].y) / (v[1].x * (v[2].y - v[0].y) + (v[0].x - v[2].x) * v[1].y + v[2].x * v[0].y - v[0].x * v[2].y );
-    float c3 = (x * (v[0].y - v[1].y) + (v[1].x - v[0].x) * y + v[0].x * v[1].y - v[1].x*v[0].y) / (v[2].x * (v[0].y - v[1].y) + (v[1].x - v[0].x) * v[2].y + v[0].x * v[1].y - v[1].x * v[0].y );
-    return {c1,c2,c3};
-}
-*/
-
-void line(int x0, int y0, int x1, int y1, TGAImage& image, TGAColor color) {
+void Line(int x0, int y0, int x1, int y1, TGAImage& image, TGAColor color) {
     bool steep = false; //Whether swap coordinates x and Y
     //When the slope is bigger than 1, swap coordinates x , y.Otherwise there will be holes in the line segment
     if (std::abs(y0 - y1) > std::abs(x0 - x1)) 
@@ -92,4 +47,94 @@ void line(int x0, int y0, int x1, int y1, TGAImage& image, TGAColor color) {
 
         }
     }
+}
+
+void fillTriangle(Vec2i* v, TGAImage& image, const TGAColor& color)
+{
+    if (v[0].y > v[1].y) std::swap(v[0], v[1]);
+    if (v[0].y > v[2].y) std::swap(v[0], v[2]);
+    if (v[1].y > v[2].y) std::swap(v[1], v[2]);
+
+    int totalHeight = v[2].y - v[0].y + 1;
+
+    for (int _y = v[0].y; _y <= v[1].y; ++_y)
+    {
+        int target = v[1].y - v[0].y + 1;
+        float alpha = (float)(_y - v[0].y) / totalHeight;
+        float beta = (float)(_y - v[0].y) / target;
+
+        Vec2i A = v[0] + (v[2] - v[0]) * alpha;
+        Vec2i B = v[0] + (v[1] - v[0]) * beta;
+
+        if (A.x > B.x) std::swap(A, B);
+
+        for (int i = A.x; i <= B.x; ++i)
+            image.set(i, _y, color);
+    }
+
+    for (int _y = v[1].y; _y <= v[2].y; ++_y)
+    {
+        int target = v[2].y - v[1].y + 1;
+        float alpha = (float)(_y - v[0].y) / totalHeight;
+        float beta = (float)(_y - v[1].y) / target;
+
+        Vec2i A = v[0] + (v[2] - v[0]) * alpha;
+        Vec2i B = v[1] + (v[2] - v[1]) * beta;
+
+        if (A.x > B.x) std::swap(A, B);
+
+        for (int i = A.x; i <= B.x; ++i)
+            image.set(i, _y, color);
+    }
+}
+
+void DrawWireframeAndSetColor(TGAImage& image, const unsigned int& height, const unsigned int& width, const TGAColor& color)
+{
+    //vert : vertex coordinate
+    //face : triangle face
+    for (int i = 0; i < ModelBody->nfaces(); ++i)
+    {
+        std::vector<int> face = ModelBody->face(i);
+        Vec3f worldCoords[3];
+
+        Vec2i screenCoords[3];
+
+        for (int j = 0; j < 3; ++j)
+        {
+            auto v = ModelBody->vert(face[j]);
+            worldCoords[j] = v;
+
+            screenCoords[j] = Vec2i((v.x + 1.) * width / 2., (v.y + 1.) * height / 2.);
+        }
+
+        Line(screenCoords[0].x, screenCoords[0].y, screenCoords[1].x, screenCoords[1].y, image, color);
+        Line(screenCoords[1].x, screenCoords[1].y, screenCoords[2].x, screenCoords[2].y, image, color);
+        Line(screenCoords[2].x, screenCoords[2].y, screenCoords[0].x, screenCoords[0].y, image, color);
+
+        fillTriangle(screenCoords, image, TGAColor(rand() % 255, rand() % 255, rand() % 255, 255));
+        
+    }
+
+    for (int i = 0; i < ModelFace->nfaces(); ++i)
+    {
+        std::vector<int> face = ModelFace->face(i);
+
+        Vec3f worldCoords[3];
+        Vec2i screenCoords[3];
+
+        for (int j = 0; j < 3; ++j)
+        {
+            auto v = ModelFace->vert(face[j]);
+            worldCoords[j] = v;
+
+            screenCoords[j] = Vec2i((v.x + 1.) * width / 2., (v.y + 1.) * height / 2.);
+        }
+
+        Line(screenCoords[0].x, screenCoords[0].y, screenCoords[1].x, screenCoords[1].y, image, color);
+        Line(screenCoords[1].x, screenCoords[1].y, screenCoords[2].x, screenCoords[2].y, image, color);
+        Line(screenCoords[2].x, screenCoords[2].y, screenCoords[0].x, screenCoords[0].y, image, color);
+        
+        fillTriangle(screenCoords, image, TGAColor(rand() % 255, rand() % 255, rand() % 255, 255));
+    }
+
 }

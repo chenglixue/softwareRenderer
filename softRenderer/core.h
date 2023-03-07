@@ -7,13 +7,16 @@
 extern Model* ModelBody;
 extern Model* ModelFace;
 
-void Line(int x0, int y0, int x1, int y1, TGAImage& image, TGAColor color);
+extern int* ZBuffer;
+extern Vec3f LightDir;
 
-void DrawWireframeAndSetColor(TGAImage& image, const unsigned int& height, const unsigned int& width, const TGAColor& color);
+void Line(int x0, int y0, int x1, int y1, TGAImage& image, const TGAColor& color);
+
+void output(TGAImage& image, const unsigned int& height, const unsigned int& width, const TGAColor& color);
 
 void fillTriangle(Vec2i* v, TGAImage& image, const TGAColor& color);
 
-inline Vec3f ComputeBarycentric2D(float x, float y, Vec3f* v)
+inline Vec3f ComputeBarycentric(float x, float y, Vec3f* v)
 {
     float c1 = (x * (v[1].y - v[2].y) + (v[2].x - v[1].x) * y + v[1].x * v[2].y - v[2].x * v[1].y) / (v[0].x * (v[1].y - v[2].y) + (v[2].x - v[1].x) * v[0].y + v[1].x * v[2].y - v[2].x * v[1].y);
     float c2 = (x * (v[2].y - v[0].y) + (v[0].x - v[2].x) * y + v[2].x * v[0].y - v[0].x * v[2].y) / (v[1].x * (v[2].y - v[0].y) + (v[0].x - v[2].x) * v[1].y + v[2].x * v[0].y - v[0].x * v[2].y);
@@ -21,11 +24,11 @@ inline Vec3f ComputeBarycentric2D(float x, float y, Vec3f* v)
     return Vec3f{ c1,c2,c3 };
 }
 
-inline bool IsInsideTriangle(Vec2f* v, float x, float y)
+inline bool IsInsideTriangle(Vec2i* v, float x, float y)
 {
-    Vec2f side1 = { v[1].x - v[0].x, v[1].y - v[0].y };
-    Vec2f side2 = { v[2].x - v[1].x, v[2].y - v[1].y };
-    Vec2f side3 = { v[0].x - v[2].x, v[0].y - v[2].y };
+    Vec2i side1 = { v[1].x - v[0].x, v[1].y - v[0].y };
+    Vec2i side2 = { v[2].x - v[1].x, v[2].y - v[1].y };
+    Vec2i side3 = { v[0].x - v[2].x, v[0].y - v[2].y };
 
     Vec2f v1 = { x - v[0].x, y - v[0].y };
     Vec2f v2 = { x - v[1].x, y - v[1].y };

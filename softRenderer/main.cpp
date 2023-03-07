@@ -7,6 +7,8 @@ const TGAColor RandColor = TGAColor(rand() % 255, rand() % 255, rand() % 255, 25
 //the resolution of output of the picture
 const unsigned int Width = 436 * 2;
 const unsigned int Height = 521 * 2;
+Vec3f LightDir(0.0, 0.0, -1.0);
+int* ZBuffer = new int[Width * Height];
 
 //model data
 Model* ModelBody = nullptr;
@@ -27,7 +29,11 @@ int main(int argc, char** argv)
         ModelFace = new Model("obj/fuhuaface.obj");
     }
 
-    DrawWireframeAndSetColor(image, Height, Width, White);
+    //init zBuffer
+    for (int i = Width * Height; i >= 0; i--)
+        zBuffer[i] = -std::numeric_limits<float>::max();
+
+    output(image, Height, Width, White);
 
     image.flip_vertically();
     image.write_tga_file("output.tga");

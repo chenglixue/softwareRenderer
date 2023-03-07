@@ -1,6 +1,7 @@
 #include "core.h"
 
-void Line(int x0, int y0, int x1, int y1, TGAImage& image, TGAColor color) {
+void Line(int x0, int y0, int x1, int y1, TGAImage& image, const TGAColor& color) 
+{
     bool steep = false; //Whether swap coordinates x and Y
     //When the slope is bigger than 1, swap coordinates x , y.Otherwise there will be holes in the line segment
     if (std::abs(y0 - y1) > std::abs(x0 - x1)) 
@@ -55,7 +56,7 @@ void fillTriangle(Vec2i* v, TGAImage& image, const TGAColor& color)
     if (v[0].y > v[2].y) std::swap(v[0], v[2]);
     if (v[1].y > v[2].y) std::swap(v[1], v[2]);
 
-    int totalHeight = v[2].y - v[0].y + 1;
+    int totalHeight = v[2].y - v[0].y;
 
     for (int _y = v[0].y; _y <= v[1].y; ++_y)
     {
@@ -88,7 +89,7 @@ void fillTriangle(Vec2i* v, TGAImage& image, const TGAColor& color)
     }
 }
 
-void DrawWireframeAndSetColor(TGAImage& image, const unsigned int& height, const unsigned int& width, const TGAColor& color)
+void output(TGAImage& image, const unsigned int& height, const unsigned int& width, const TGAColor& color)
 {
     //vert : vertex coordinate
     //face : triangle face
@@ -104,14 +105,20 @@ void DrawWireframeAndSetColor(TGAImage& image, const unsigned int& height, const
             auto v = ModelBody->vert(face[j]);
             worldCoords[j] = v;
 
-            screenCoords[j] = Vec2i((v.x + 1.) * width / 2., (v.y + 1.) * height / 2.);
+            screenCoords[j] = Vec2i((v.x + 1.) * width / 2., (v.y * 0.5 + 1.) * height / 2.);
         }
 
+        // draw wireframe
         Line(screenCoords[0].x, screenCoords[0].y, screenCoords[1].x, screenCoords[1].y, image, color);
         Line(screenCoords[1].x, screenCoords[1].y, screenCoords[2].x, screenCoords[2].y, image, color);
         Line(screenCoords[2].x, screenCoords[2].y, screenCoords[0].x, screenCoords[0].y, image, color);
 
-        fillTriangle(screenCoords, image, TGAColor(rand() % 255, rand() % 255, rand() % 255, 255));
+        //light
+        Vec3f n = (worldCoords[2] - worldCoords[0]) ^ (worldCoords[1] - worldCoords[0]);
+        n.normalize();
+        float intensity = n * LightDir;
+        if(intensity > 0)
+            fillTriangle(screenCoords, image, TGAColor(intensity * 255, intensity *  255, intensity *  255, 255));
         
     }
 
@@ -127,14 +134,18 @@ void DrawWireframeAndSetColor(TGAImage& image, const unsigned int& height, const
             auto v = ModelFace->vert(face[j]);
             worldCoords[j] = v;
 
-            screenCoords[j] = Vec2i((v.x + 1.) * width / 2., (v.y + 1.) * height / 2.);
+            screenCoords[j] = Vec2i((v.x + 1.) * width / 2., (v.y * 0.5 + 1.) * height / 2.);
         }
 
         Line(screenCoords[0].x, screenCoords[0].y, screenCoords[1].x, screenCoords[1].y, image, color);
         Line(screenCoords[1].x, screenCoords[1].y, screenCoords[2].x, screenCoords[2].y, image, color);
         Line(screenCoords[2].x, screenCoords[2].y, screenCoords[0].x, screenCoords[0].y, image, color);
         
-        fillTriangle(screenCoords, image, TGAColor(rand() % 255, rand() % 255, rand() % 255, 255));
+        Vec3f n = (worldCoords[2] - worldCoords[0]) ^ (worldCoords[1] - worldCoords[0]);
+        n.normalize();
+        float intensity = n * LightDir;
+        if (intensity > 0)
+            fillTriangle(screenCoords, image, TGAColor(intensity * 255, intensity * 255, intensity * 255, 255));
     }
 
 }

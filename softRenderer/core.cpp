@@ -1,7 +1,6 @@
 #include "core.h"
 
-void Line(int x0, int y0, int x1, int y1, TGAImage& image, const TGAColor& color) 
-{
+void Line(int x0, int y0, int x1, int y1, TGAImage& image, TGAColor color) {
     bool steep = false; //Whether swap coordinates x and Y
     //When the slope is bigger than 1, swap coordinates x , y.Otherwise there will be holes in the line segment
     if (std::abs(y0 - y1) > std::abs(x0 - x1)) 
@@ -50,13 +49,13 @@ void Line(int x0, int y0, int x1, int y1, TGAImage& image, const TGAColor& color
     }
 }
 
-void fillTriangle(Vec2i* v, TGAImage& image, const TGAColor& color)
+void DrawTriangle(Vec2i* v, TGAImage& image, const TGAColor& color)
 {
     if (v[0].y > v[1].y) std::swap(v[0], v[1]);
     if (v[0].y > v[2].y) std::swap(v[0], v[2]);
     if (v[1].y > v[2].y) std::swap(v[1], v[2]);
 
-    int totalHeight = v[2].y - v[0].y;
+    int totalHeight = v[2].y - v[0].y + 1;
 
     for (int _y = v[0].y; _y <= v[1].y; ++_y)
     {
@@ -89,63 +88,32 @@ void fillTriangle(Vec2i* v, TGAImage& image, const TGAColor& color)
     }
 }
 
-void output(TGAImage& image, const unsigned int& height, const unsigned int& width, const TGAColor& color)
+void DrawTriangleZBuffer( Vec3f* v, std::vector<std::vector<float>>& zBuffer, int width, TGAImage& image, TGAColor color )
 {
-    //vert : vertex coordinate
-    //face : triangle face
-    for (int i = 0; i < ModelBody->nfaces(); ++i)
+    int minX = std::min( v[0].x, std::min( v[1].x, v[2].x ) );
+    int maxX = std::max( v[0].x, std::max( v[1].x, v[2].x ) );
+    int minY = std::min( v[0].y, std::min( v[1].y, v[2].y ) );
+    int maxY = std::max( v[0].y, std::max( v[1].y, v[2].y ) );
+
+    for( int i = minX; i <= maxX; ++i )
     {
-        std::vector<int> face = ModelBody->face(i);
-        Vec3f worldCoords[3];
-
-        Vec2i screenCoords[3];
-
-        for (int j = 0; j < 3; ++j)
+        for( int j = minY; j <= maxY; ++j )
         {
-            auto v = ModelBody->vert(face[j]);
-            worldCoords[j] = v;
+            if( IsInsideTriangle( v, i, j ) == true ) 
+            {
+                //重心坐标插值求z值
+                auto bc_screen = ComputeBarycentric( v, i, j );
+                float tempZ = v[0].z * bc_screen.x / 1.0f + v[1].z * bc_screen.y / 1.0f + v[2].z * bc_screen.z / 1.0f;
 
-            screenCoords[j] = Vec2i((v.x + 1.) * width / 2., (v.y * 0.5 + 1.) * height / 2.);
+                //更新z值
+                if( tempZ < zBuffer[j][i] )
+                {
+                    zBuffer[j][i] = tempZ;
+                    image.set( i, j, color );
+                }
+
+            }
+
         }
-
-        // draw wireframe
-        Line(screenCoords[0].x, screenCoords[0].y, screenCoords[1].x, screenCoords[1].y, image, color);
-        Line(screenCoords[1].x, screenCoords[1].y, screenCoords[2].x, screenCoords[2].y, image, color);
-        Line(screenCoords[2].x, screenCoords[2].y, screenCoords[0].x, screenCoords[0].y, image, color);
-
-        //light
-        Vec3f n = (worldCoords[2] - worldCoords[0]) ^ (worldCoords[1] - worldCoords[0]);
-        n.normalize();
-        float intensity = n * LightDir;
-        if(intensity > 0)
-            fillTriangle(screenCoords, image, TGAColor(intensity * 255, intensity *  255, intensity *  255, 255));
-        
     }
-
-    for (int i = 0; i < ModelFace->nfaces(); ++i)
-    {
-        std::vector<int> face = ModelFace->face(i);
-
-        Vec3f worldCoords[3];
-        Vec2i screenCoords[3];
-
-        for (int j = 0; j < 3; ++j)
-        {
-            auto v = ModelFace->vert(face[j]);
-            worldCoords[j] = v;
-
-            screenCoords[j] = Vec2i((v.x + 1.) * width / 2., (v.y * 0.5 + 1.) * height / 2.);
-        }
-
-        Line(screenCoords[0].x, screenCoords[0].y, screenCoords[1].x, screenCoords[1].y, image, color);
-        Line(screenCoords[1].x, screenCoords[1].y, screenCoords[2].x, screenCoords[2].y, image, color);
-        Line(screenCoords[2].x, screenCoords[2].y, screenCoords[0].x, screenCoords[0].y, image, color);
-        
-        Vec3f n = (worldCoords[2] - worldCoords[0]) ^ (worldCoords[1] - worldCoords[0]);
-        n.normalize();
-        float intensity = n * LightDir;
-        if (intensity > 0)
-            fillTriangle(screenCoords, image, TGAColor(intensity * 255, intensity * 255, intensity * 255, 255));
-    }
-
 }

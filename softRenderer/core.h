@@ -1,16 +1,16 @@
 #pragma once
 #include <limits>
 #include "tgaimage.h"
-#include "geometry.h"
 #include "model.h"
+#include "geometry.h"
 
 void Line(int x0, int y0, int x1, int y1, TGAImage& image, TGAColor color);
 
 void DrawTriangle(Vec2i* v, TGAImage& image, const TGAColor& color);
 
-void DrawTriangleZBuffer( Vec3f* v, std::vector<std::vector<float>>&, int width, TGAImage& image, TGAColor color );
+void DrawTriangleZBuffer(Vec3f*, Vec2i*, std::vector<std::vector<int>>&, int , float, TGAImage& , Model*);
 
-inline Vec3f ComputeBarycentric(Vec3f* v, float x, float y)
+inline Vec3f ComputeBarycentric(Vec3f* v, int x, int y)
 {
     float c1 = (x * (v[1].y - v[2].y) + (v[2].x - v[1].x) * y + v[1].x * v[2].y - v[2].x*v[1].y) / (v[0].x * (v[1].y - v[2].y) + (v[2].x - v[1].x) * v[0].y + v[1].x * v[2].y - v[2].x * v[1].y );
     float c2 = (x * (v[2].y - v[0].y) + (v[0].x - v[2].x) * y + v[2].x * v[0].y - v[0].x*v[2].y) / (v[1].x * (v[2].y - v[0].y) + (v[0].x - v[2].x) * v[1].y + v[2].x * v[0].y - v[0].x * v[2].y );
@@ -18,7 +18,7 @@ inline Vec3f ComputeBarycentric(Vec3f* v, float x, float y)
     return Vec3f(c1, c2, c3);
 }
 
-inline bool IsInsideTriangle(Vec3f* v, int x, int y)
+inline bool IsInsideTriangle(Vec3f* v, float x, float y)
 {
     Vec2f side1 = { v[1].x - v[0].x, v[1].y - v[0].y };
     Vec2f side2 = { v[2].x - v[1].x, v[2].y - v[1].y };

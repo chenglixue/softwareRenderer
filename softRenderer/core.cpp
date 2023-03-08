@@ -88,28 +88,30 @@ void DrawTriangle(Vec2i* v, TGAImage& image, const TGAColor& color)
     }
 }
 
-void DrawTriangleZBuffer( Vec3f* v, std::vector<std::vector<float>>& zBuffer, int width, TGAImage& image, TGAColor color )
+void DrawTriangleZBuffer(Vec3f* v, Vec2i* uv,std::vector<std::vector<int>>& zBuffer, int width, float intens, TGAImage& image, Model* model)
 {
-    int minX = std::min( v[0].x, std::min( v[1].x, v[2].x ) );
-    int maxX = std::max( v[0].x, std::max( v[1].x, v[2].x ) );
-    int minY = std::min( v[0].y, std::min( v[1].y, v[2].y ) );
-    int maxY = std::max( v[0].y, std::max( v[1].y, v[2].y ) );
+    const int minX = std::floor(std::min( v[0].x, std::min( v[1].x, v[2].x ) ));
+    const int maxX = std::ceil(std::max( v[0].x, std::max( v[1].x, v[2].x ) ));
+    const int minY = std::floor(std::min( v[0].y, std::min( v[1].y, v[2].y ) ));
+    const int maxY = std::ceil(std::max( v[0].y, std::max( v[1].y, v[2].y ) ));
 
     for( int i = minX; i <= maxX; ++i )
     {
         for( int j = minY; j <= maxY; ++j )
         {
-            if( IsInsideTriangle( v, i, j ) == true ) 
+            if( IsInsideTriangle( v, i + 0.5f, j + 0.5f ) == true ) 
             {
-                //é‡å¿ƒåæ ‡æ’å€¼æ±‚zå€¼
-                auto bc_screen = ComputeBarycentric( v, i, j );
+                //ÖØÐÄ×ø±ê²åÖµÇózÖµ
+                auto bc_screen = ComputeBarycentric( v, i + 0.5f, j + 0.5f );
                 float tempZ = v[0].z * bc_screen.x / 1.0f + v[1].z * bc_screen.y / 1.0f + v[2].z * bc_screen.z / 1.0f;
+                Vec2i uvP = uv[0] * bc_screen.x + uv[1] * bc_screen.y + uv[2] * bc_screen.z;
 
-                //æ›´æ–°zå€¼
-                if( tempZ < zBuffer[j][i] )
+                //¸üÐÂzÖµ
+                if( tempZ > zBuffer[j][i] )
                 {
                     zBuffer[j][i] = tempZ;
-                    image.set( i, j, color );
+                    TGAColor color = model->diffuse(uvP);
+                    image.set( i, j, TGAColor(color.r * intens, color.g * intens, color.b * intens ) );
                 }
 
             }

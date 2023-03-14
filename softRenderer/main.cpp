@@ -38,7 +38,7 @@ struct NormalMappingShader : public IShader
     virtual Vec4f Vertex(int iFace, int nthVert) 
     {
         m_varyingUV.set_col(nthVert, g_model->uv(iFace, nthVert));
-        m_varyingIntensity[nthVert] = std::max(0.f, g_model->normal(iFace, nthVert) * g_LightDir); // get diffuse lighting intensity
+        //m_varyingIntensity[nthVert] = std::max(0.f, g_model->normal(iFace, nthVert) * g_LightDir); // get diffuse lighting intensity
         Vec4f m_vertex = embed<4>(g_model->vert(iFace, nthVert)); // read the vertex from .obj file
         return g_Viewport * g_Projection * g_ModelView * m_vertex; // transform it to screen coordinates
     }
@@ -50,6 +50,35 @@ struct NormalMappingShader : public IShader
         auto l = proj<3>(m_uniformM * embed<4>(g_LightDir)).normalize();
         auto intensity = std::max(0.f, n * l);
         color = g_model->diffuse(uv) * intensity;
+        return false;                              // whether discard the pixel.true : yes, false : no;
+    }
+};
+
+struct PhoneShader : public IShader
+{
+    mat < 2, 3, float > m_varyingUV;
+    mat<4, 4, float> m_uniformM;
+    mat<4, 4, float> m_uniformMIT;
+
+    virtual Vec4f Vertex(int iFace, int nthVert)
+    {
+        m_varyingUV.set_col(nthVert, g_model->uv(iFace, nthVert));
+        Vec4f m_vertex = embed<4>(g_model->vert(iFace, nthVert)); // read the vertex from .obj file
+        return g_Viewport * g_Projection * g_ModelView * m_vertex; // transform it to screen coordinates
+    }
+
+    virtual bool fragment(Vec3f bar, TGAColor& color)
+    {
+        Vec2f uv = m_varyingUV * bar;
+        auto n = proj<3>(m_uniformMIT * embed<4>(g_model->normal(uv))).normalize();
+        auto l = proj<3>(m_uniformM * embed<4>(g_LightDir)).normalize();
+        auto r = (n * (n * l) * 2 - l).normalize();
+        float spec = std::pow(std::max(r.z, 0.f), g_model->specular(uv));
+        float diff = std::max(0.f, n * l);
+        TGAColor c = g_model->diffuse(uv);
+        color = c;
+        for (int i = 0; i < 3; ++i)
+            color[i] = std::min<float>(5 + c[i] * (diff + spec * 0.6), 255);
         return false;                              // whether discard the pixel.true : yes, false : no;
     }
 };
@@ -73,7 +102,7 @@ int main(int argc, char** argv)
 
     //vert f x/y/z x/y/z x/y/z : x = vertex coord, y = uv coor, z = normal coor
     //face : triangle face
-    NormalMappingShader shader;
+    PhoneShader shader;
     shader.m_uniformM = g_Projection * g_ModelView;
     shader.m_uniformMIT = (g_Projection * g_ModelView).invert_transpose();
     for (int i = 0; i < g_model->nfaces(); ++i)

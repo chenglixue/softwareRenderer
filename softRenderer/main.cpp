@@ -83,44 +83,89 @@ struct PhoneShader : public IShader
     }
 };
 
+//normal mapping & TBN
+struct NMPhoneShader : public IShader
+{
+    mat <2, 3, float> m_varyingUV;
+    mat <3, 3, float> m_varyingNormal;
+    mat <3, 3, float> m_ndc;
+    mat <4, 3, float> m_varyingTri;
+
+    virtual Vec4f Vertex(int iFace, int nthVert)
+    {
+        m_varyingUV.set_col(nthVert, g_model->uv(iFace, nthVert));
+        m_varyingNormal.set_col(nthVert, proj<3>((g_Projection * g_ModelView).invert_transpose() * embed<4>(g_model->normal(iFace, nthVert), 0.f)));
+        Vec4f m_vertex = g_Projection * g_ModelView * embed<4>(g_model->vert(iFace, nthVert)); // read the vertex from .obj file
+        m_varyingTri.set_col(nthVert, m_vertex);
+        m_ndc.set_col(nthVert, proj<3>(m_vertex / m_vertex[3]));
+        return m_vertex; // transform it to screen coordinates
+    }
+
+    virtual bool fragment(Vec3f bar, TGAColor& color)
+    {
+        Vec2f uv = m_varyingUV * bar;
+        Vec3f bn = (m_varyingNormal * bar).normalize();
+
+        //because transformed from world space to tangen space so use inverse of matrix
+        mat<3, 3, float> A;
+        A[0] = m_ndc.col(1) - m_ndc.col(0);
+        A[1] = m_ndc.col(2) - m_ndc.col(0);
+        A[2] = bn;
+        mat<3,3,float> AI = A.invert();
+        auto i = AI * Vec3f(m_varyingUV[0][1] - m_varyingUV[0][0], m_varyingUV[0][2] - m_varyingUV[0][0], 0);
+        auto j = AI * Vec3f(m_varyingUV[1][1] - m_varyingUV[1][0], m_varyingUV[1][2] - m_varyingUV[1][0], 0);
+        
+        //get the texture transformed to tangen space
+        mat<3, 3, float>B;
+        B.set_col(0, i.normalize());
+        B.set_col(1, j.normalize());
+        B.set_col(2, bn);
+
+        auto n = (B * g_model->normal(uv)).normalize();
+        float diff = std::max(0.f, n * g_LightDir);
+        color = g_model->diffuse(uv) * diff;
+        return false;                              // whether discard the pixel.true : yes, false : no;
+    }
+};
+
 int main(int argc, char** argv)
 {
-    if (2 == argc) {
-        g_model = new Model(argv[1]);
-    }
-    else {
-        g_model = new Model("obj/african_head.obj");
+    if (2 > argc) 
+    {
+        std::cerr << "Usage: " << argv[0] << " obj/model.obj" << std::endl;
+        return 1;
     }
 
-    TGAImage ZBuffer(g_Width, g_Height, TGAImage::GRAYSCALE);
+    float* ZBuffer = new float[g_Width * g_Height];
+    for (int i = g_Width * g_Height; i--; ZBuffer[i] = -std::numeric_limits<float>::max());
+
     TGAImage frameBuffer(g_Width, g_Height, TGAImage::RGB); // the output image
-    g_LightDir.normalize();
-
     LookAt(g_Camera, g_Target, g_Up);
     Projection( -1.f / (g_Camera - g_Target).norm());
     ViewPort(g_Width / 8, g_Height / 8, g_Width * 3 / 4, g_Height * 3 / 4);
+    g_LightDir = proj<3>((g_Projection * g_ModelView * embed<4>(g_LightDir, 0.f))).normalize();
 
     //vert f x/y/z x/y/z x/y/z : x = vertex coord, y = uv coor, z = normal coor
     //face : triangle face
-    PhoneShader shader;
-    shader.m_uniformM = g_Projection * g_ModelView;
-    shader.m_uniformMIT = (g_Projection * g_ModelView).invert_transpose();
-    for (int i = 0; i < g_model->nfaces(); ++i)
+    for (int m = 1; m < argc; ++m)
     {
-        Vec4f clipVerts[3];  //clip coordinates.written by VS, read by FS
-        for (int j : {0, 1, 2})
+        g_model = new Model(argv[m]);
+        NMPhoneShader shader;
+        for (int i = 0; i < g_model->nfaces(); ++i)
         {
-            clipVerts[j] = shader.Vertex(i, j);
+            for (int j : {0, 1, 2})
+            {
+                shader.Vertex(i, j);
+            }
+            rasterization(shader.m_varyingTri, shader, frameBuffer, ZBuffer);
         }
-        rasterization(clipVerts, shader, frameBuffer, ZBuffer);
+        delete g_model;
     }
 
     //Image.flip_vertically();
     frameBuffer.flip_vertically();
     frameBuffer.write_tga_file("output.tga");
-    ZBuffer.flip_vertically();
-    ZBuffer.write_tga_file("zbuffer.tga");
 
-    delete g_model;
+    delete[] ZBuffer;
     return 0;
 }

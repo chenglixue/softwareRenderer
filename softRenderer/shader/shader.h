@@ -19,7 +19,7 @@ struct IShader
 Vec3f barycentric(Vec2f A, Vec2f B, Vec2f C, Vec2f P);
 //first target : transform coordinates of vertices
 //second target : prepare data for fragment shader
-void rasterization(Vec4f* pts, IShader& shader, TGAImage& image, TGAImage& zbuffer);
+void rasterization(mat<4, 3, float>& clipc, IShader& shader, TGAImage& image, float* zbuffer);
 
 //always put the object  looking at at (0,0,0)
 inline void LookAt(const Vec3f& eyePos, const Vec3f& targetPos, const Vec3f& upDir)

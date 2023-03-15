@@ -6,20 +6,25 @@
 extern Matrix g_ModelView;
 extern Matrix g_Viewport;
 extern Matrix g_Projection;
+const float depth = 500.f;
 
 struct IShader
 {
     virtual ~IShader();
-    virtual Vec4f Vertex(int iFace, int nthVert) = 0;
-    virtual bool fragment(const Vec3f bar, TGAColor& color) = 0;
+    virtual Vec4f Vertex(int iFace, int nthVert) = 0;   //vertex shader
+    virtual bool fragment(const Vec3f bar, TGAColor& color) = 0;    //fragment shader
 };
 
 //void Line(int x0, int y0, int x1, int y1, TGAImage& image, TGAColor color);
+
 //void DrawTriangle(vec2* v, TGAImage& image, const TGAColor& color);
-Vec3f barycentric(Vec2f A, Vec2f B, Vec2f C, Vec2f P);
+
+Vec3f ComputeBarycentric(Vec2f P, Vec2f A, Vec2f B, Vec2f C);
+
 //first target : transform coordinates of vertices
 //second target : prepare data for fragment shader
-void rasterization(mat<4, 3, float>& clipc, IShader& shader, TGAImage& image, float* zbuffer);
+//void Rasterization(mat<4, 3, float>& clipc, IShader& shader, TGAImage& image, float* zbuffer);
+void Rasterization(Vec4f* clipc, IShader& shader, TGAImage& image, float* zbuffer);
 
 //always put the object  looking at at (0,0,0)
 inline void LookAt(const Vec3f& eyePos, const Vec3f& targetPos, const Vec3f& upDir)
@@ -42,12 +47,14 @@ inline void LookAt(const Vec3f& eyePos, const Vec3f& targetPos, const Vec3f& upD
     g_ModelView = rotation * translation;
 }
 
+//perspective projection
 inline void Projection(const double& f)
 {
     g_Projection = Matrix::identity();
     g_Projection[3][2] = f;
 }
 
+//viewport
 inline void ViewPort(const int& x, const int& y, const int& w, const int& h)
 {
     g_Viewport = Matrix::identity();

@@ -6,6 +6,7 @@
 IShader::~IShader(){}
 
 /*
+Bresenham's line
 void Line(int x0, int y0, int x1, int y1, TGAImage& image, TGAColor color) {
     bool steep = false; //Whether swap coordinates x and Y
     //When the slope is bigger than 1, swap coordinates x , y.Otherwise there will be holes in the line segment
@@ -95,23 +96,20 @@ void DrawTriangle(vec2* v, TGAImage& image, const TGAColor& color)
             image.set(i, _y, color);
     }
 }
-*/
+*/ 
 
-Vec3f barycentric(Vec2f A, Vec2f B, Vec2f C, Vec2f P) 
+// interpolation of triangle
+Vec3f ComputeBarycentric(Vec2f P, Vec2f A, Vec2f B, Vec2f C)
 {
-    Vec3f s[2];
-    for (int i = 2; i--; ) {
-        s[i][0] = C[i] - A[i];
-        s[i][1] = B[i] - A[i];
-        s[i][2] = A[i] - P[i];
-    }
-    Vec3f u = cross(s[0], s[1]);
-    if (std::abs(u[2]) > 1e-2) // dont forget that u[2] is integer. If it is zero then triangle ABC is degenerate
-        return Vec3f(1.f - (u.x + u.y) / u.z, u.y / u.z, u.x / u.z);
-    return Vec3f(-1, 1, 1); // in this case generate negative coordinates, it will be thrown away by the rasterizator
+    float c1 = (P.x * (B.y - C.y) + (C.x - B.x) * P.y + B.x * C.y - C.x * B.y) / (A.x * (B.y - C.y) + (C.x - B.x) * A.y + B.x * C.y - C.x * B.y);
+    float c2 = (P.x * (C.y - A.y) + (A.x - C.x) * P.y + C.x * A.y - A.x * C.y) / (B.x * (C.y - A.y) + (A.x - C.x) * B.y + C.x * A.y - A.x * C.y);
+    float c3 = (P.x * (A.y - B.y) + (B.x - A.x) * P.y + A.x * B.y - B.x * A.y) / (C.x * (A.y - B.y) + (B.x - A.x) * C.y + A.x * B.y - B.x * A.y);
+    return Vec3f(c1, c2, c3);
 }
 
-void rasterization(mat<4, 3, float>& clipc, IShader& shader, TGAImage& image, float* zbuffer)
+/*
+ for tangent space
+void Rasterization(mat<4, 3, float>& clipc, IShader& shader, TGAImage& image, float* zbuffer)
 {
     mat<3, 4, float> pts = (g_Viewport * clipc).transpose(); // transposed to ease access to each of the points
     mat<3, 2, float> pts2;
@@ -135,15 +133,57 @@ void rasterization(mat<4, 3, float>& clipc, IShader& shader, TGAImage& image, fl
     {
         for (P.y = bboxmin.y; P.y <= bboxmax.y; P.y++) 
         {
-            Vec3f bc_screen = barycentric(pts2[0], pts2[1], pts2[2], P);
-            Vec3f bc_clip = Vec3f(bc_screen.x / pts[0][3], bc_screen.y / pts[1][3], bc_screen.z / pts[2][3]);
-            bc_clip = bc_clip / (bc_clip.x + bc_clip.y + bc_clip.z);
-            float frag_depth = clipc[2] * bc_clip;
-            if (bc_screen.x < 0 || bc_screen.y < 0 || bc_screen.z<0 || zbuffer[P.x + P.y * image.get_width()] > frag_depth) continue;
-            bool discard = shader.fragment(bc_clip, color);
+            Vec3f weight = ComputeBarycentric(P, pts2[0], pts2[1], pts2[2]);
+            if (weight.x < 0 || weight.y < 0 || weight.z < 0) continue;
+
+            //normalize weight value
+            Vec3f clipInter = Vec3f(weight.x / pts[0][3], weight.y / pts[1][3], weight.z / pts[2][3]);
+            clipInter = clipInter / (clipInter.x + clipInter.y + clipInter.z);
+            float zInter = clipc[2] * clipInter;
+
+            if (zbuffer[P.x + P.y * image.get_width()] > zInter) continue;
+
+            bool discard = shader.fragment(clipInter, color);
             if (!discard) 
             {
-                zbuffer[P.x + P.y * image.get_width()] = frag_depth;
+                zbuffer[P.x + P.y * image.get_width()] = zInter;
+                image.set(P.x, P.y, color);
+            }
+        }
+    }
+}
+*/
+
+void Rasterization(Vec4f* pts, IShader& shader, TGAImage& image, float* zbuffer)
+{
+    Vec2f bboxmin(std::numeric_limits<float>::max(), std::numeric_limits<float>::max());
+    Vec2f bboxmax(-std::numeric_limits<float>::max(), -std::numeric_limits<float>::max());
+    for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 2; j++) {
+            bboxmin[j] = std::min(bboxmin[j], pts[i][j] / pts[i][3]);
+            bboxmax[j] = std::max(bboxmax[j], pts[i][j] / pts[i][3]);
+        }
+    }
+
+    Vec2i P;
+    TGAColor color;
+    for (P.x = bboxmin.x; P.x <= bboxmax.x; P.x++)
+    {
+        for (P.y = bboxmin.y; P.y <= bboxmax.y; P.y++)
+        {
+            Vec3f weight = ComputeBarycentric(P, proj<2>(pts[0] / pts[0][3]), proj<2>(pts[1] / pts[1][3]), proj<2>(pts[2] / pts[2][3]));
+            if (weight.x < 0 || weight.y < 0 || weight.z < 0) continue;
+
+            float zInter = pts[0][2] * weight.x + pts[1][2] * weight.y + pts[2][2] * weight.z;
+            float wInter = pts[0][3] * weight.x + pts[1][3] * weight.y + pts[2][3] * weight.z;
+            int fragZ = zInter / wInter;
+
+            if (zbuffer[P.x + P.y * image.get_width()] > zInter) continue;
+
+            bool discard = shader.fragment(weight, color);
+            if (!discard)
+            {
+                zbuffer[P.x + P.y * image.get_width()] = zInter;
                 image.set(P.x, P.y, color);
             }
         }

@@ -1,3 +1,4 @@
+if you want to find more details, please come my blog:https://www.cnblogs.com/chenglixue/
 # Introduction
 
 this software renderer has the following features：
